@@ -41,7 +41,7 @@ class CaptchaHandler:
                     await self.page.wait_for_timeout(3000)
                     return True
 
-            print("\n  ⚠ reCAPTCHA detectado — No se pudo resolver automaticamente.")
+            print("\n  [!] reCAPTCHA detectado -- No se pudo resolver automaticamente.")
             print("  Para resolverlo manualmente:")
             print(f"    1. Abre la URL en un navegador normal")
             print(f"    2. Resuelve el CAPTCHA")
@@ -51,11 +51,11 @@ class CaptchaHandler:
             return False
 
     async def _handle_hcaptcha(self, captcha: CaptchaResult) -> bool:
-        print("\n  ⚠ hCaptcha detectado — No se puede resolver automaticamente.")
+        print("\n  [!] hCaptcha detectado -- No se puede resolver automaticamente.")
         return False
 
     async def _handle_cloudflare(self, captcha: CaptchaResult) -> bool:
-        print("\n  ⚠ Cloudflare Challenge detectado — Esperando resolucion...")
+        print("\n  [!] Cloudflare Challenge detectado -- Esperando resolucion...")
         try:
             await self.page.wait_for_url(
                 lambda url: "challenge" not in url,
@@ -63,11 +63,11 @@ class CaptchaHandler:
             )
             return True
         except Exception:
-            print("  ✗ No se pudo superar Cloudflare.")
+            print("  [FAIL] No se pudo superar Cloudflare.")
             return False
 
     async def _handle_blocked(self, captcha: CaptchaResult) -> bool:
-        print(f"\n  ⚠ Bloqueo detectado: {captcha.detail}")
+        print(f"\n  [!] Bloqueo detectado: {captcha.detail}")
         print("  Posibles soluciones:")
         print("    - Usar una sesion autenticada (python -m backend.scripts.cli auth login)")
         print("    - Reducir velocidad de scraping")
@@ -75,7 +75,7 @@ class CaptchaHandler:
         return False
 
     async def _handle_login_required(self, captcha: CaptchaResult) -> bool:
-        print(f"\n  ⚠ Se requiere iniciar sesion.")
+        print(f"\n  [!] Se requiere iniciar sesion.")
         print("  Ejecuta: python -m backend.scripts.cli auth login <plataforma>")
         return False
 

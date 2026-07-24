@@ -14,7 +14,7 @@ from backend.captcha import CaptchaDetector, CaptchaType, CaptchaResult
 
 @dataclass
 class ApplicationResult:
-    success: bool
+    success: bool = False
     platform: str = ""
     company: str = ""
     position: str = ""
@@ -35,6 +35,23 @@ class JobApplicator:
     def __init__(self, cv_path: str | Path | None = None):
         self.cv_path = Path(cv_path) if cv_path else None
 
+    async def _make_context(self, browser, platform: str = "", state=None):
+        """Crea contexto con configuracion especifica segun plataforma."""
+        kwargs = {
+            "viewport": {"width": 1280, "height": 800},
+        }
+        if state:
+            kwargs["storage_state"] = state
+
+        if platform == "computrabajo":
+            kwargs.update(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="es-CO",
+            )
+
+        return await browser.new_context(**kwargs)
+
     async def apply(
         self,
         offer_url: str,
@@ -50,10 +67,7 @@ class JobApplicator:
             storage = SessionStorage(platform) if platform else None
             state = storage.load() if storage and storage.exists() else None
 
-            context = await browser.new_context(
-                storage_state=state,
-                viewport={"width": 1280, "height": 800},
-            )
+            context = await self._make_context(browser, platform=platform, state=state)
             page = await context.new_page()
 
             # 1. Navegar a la oferta
@@ -73,7 +87,7 @@ class JobApplicator:
             result.captcha = captcha
 
             if captcha.detected:
-                result.steps.append(f"⚠ CAPTCHA/Bloqueo detectado: {captcha.captcha_type.value} - {captcha.detail}")
+                result.steps.append(f"[!] CAPTCHA/Bloqueo detectado: {captcha.captcha_type.value} - {captcha.detail}")
                 if captcha.captcha_type == CaptchaType.LOGIN_REQUIRED:
                     result.error = "Se requiere iniciar sesion. Usa: python -m backend.scripts.auth_cli login <plataforma>"
                 else:
@@ -86,7 +100,7 @@ class JobApplicator:
             # 3. Buscar boton de aplicar
             apply_clicked = await self._click_apply(page, result)
             if not apply_clicked:
-                result.steps.append("⚠ No se encontro boton de aplicar")
+                result.steps.append("[!] No se encontro boton de aplicar")
                 # Podria ser que la pagina ya muestra el formulario directamente
 
             # 4. Detectar y rellenar formulario
@@ -94,7 +108,7 @@ class JobApplicator:
             if filled:
                 result.applied = True
                 result.success = True
-                result.steps.append("✓ Postulacion completada")
+                result.steps.append("[OK] Postulacion completada")
 
             await browser.close()
             return result

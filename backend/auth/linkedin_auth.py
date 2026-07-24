@@ -21,6 +21,6 @@ class LinkedInAuthenticator(BaseAuthenticator):
         """Verifica que redirigió al feed principal."""
         current = page.url
         if "feed" in current or "checkpoint" in current:
-            print(f"  ✓ Sesión detectada en: {current[:60]}")
+            print(f"  [OK] Sesion detectada en: {current[:60]}")
         else:
-            print(f"  ⚠ Posiblemente no autenticado. URL actual: {current[:60]}")
+            print(f"  [!] Posiblemente no autenticado. URL actual: {current[:60]}")

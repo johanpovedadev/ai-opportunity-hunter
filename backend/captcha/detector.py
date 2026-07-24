@@ -56,16 +56,16 @@ class CaptchaDetector:
         ],
     }
 
-    BLOCKED_KEYWORDS = [
-        "automated", "automation", "bot", "unusual traffic",
-        "please verify", "security check", "sorry",
-        "access denied", "too many requests", "rate limit",
-        "please wait", "challenge",
+    BLOCKED_PATTERNS = [
+        r"\bautomated\b", r"\bautomation\b", r"\bbot\b", r"\bunusual traffic\b",
+        r"\bplease verify\b", r"\bsecurity check\b", r"\bsorry\b",
+        r"\baccess denied\b", r"\btoo many requests\b", r"\brate limit",
+        r"\bplease wait\b", r"\bchallenge\b",
     ]
 
-    LOGIN_KEYWORDS = [
-        "sign in", "log in", "login", "sign in with",
-        "we couldn't find any jobs",
+    LOGIN_PATTERNS = [
+        r"\bsign in\b", r"\blog in\b", r"\blogin\b",
+        r"\bwe couldn't find any jobs\b",
     ]
 
     def __init__(self, page: Page):
@@ -102,28 +102,29 @@ class CaptchaDetector:
         return CaptchaResult(detected=False)
 
     async def _check_text(self) -> CaptchaResult:
+        import re
         try:
             text = (await self.page.text_content("body") or "").lower()
             url = self.page.url.lower()
         except Exception:
             return CaptchaResult(detected=False)
 
-        for kw in CaptchaDetector.BLOCKED_KEYWORDS:
-            if kw in text:
+        for pattern in CaptchaDetector.BLOCKED_PATTERNS:
+            if re.search(pattern, text):
                 return CaptchaResult(
                     detected=True,
                     captcha_type=CaptchaType.BLOCKED,
                     confidence=0.7,
-                    detail=f"Texto bloqueo detectado: '{kw}'",
+                    detail=f"Texto bloqueo detectado: '{pattern}'",
                 )
 
-        for kw in ["sign in", "log in", "login"]:
-            if kw in url or kw in text[:1000]:
+        for pattern in CaptchaDetector.LOGIN_PATTERNS:
+            if re.search(pattern, text[:1000]) or re.search(pattern, url):
                 return CaptchaResult(
                     detected=True,
                     captcha_type=CaptchaType.LOGIN_REQUIRED,
                     confidence=0.8,
-                    detail=f"Login requerido: '{kw}' en URL o pagina",
+                    detail=f"Login requerido: '{pattern}' en URL o pagina",
                 )
 
         return CaptchaResult(detected=False)

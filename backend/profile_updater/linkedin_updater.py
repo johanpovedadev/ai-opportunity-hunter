@@ -1,95 +1,73 @@
-from playwright.async_api import Page
-from backend.auth.session import SessionStorage
+"""
+LinkedIn Profile Updater — LIMITACION CONOCIDA
+
+LinkedIn bloquea acceso automatizado a paginas de perfil (publico y edicion)
+con su muro de autenticacion (authwall), incluso con sesion activa via cookies.
+
+Esto ocurre porque LinkedIn utiliza autenticacion multifactor para paginas
+sensibles: la pagina de inicio (feed) es accesible, pero el perfil y edicion
+requieren verificacion adicional que el usuario no puede proveer via script.
+
+Soluciones posibles (ninguna implementada):
+  - Usar Chrome REAL del usuario con launch_persistent_context (perfil bloqueado
+    si Chrome esta abierto)
+  - Extraer cookies via CDP y usar REST API directamente (requiere CSRF token)
+  - Proxy manual: el usuario actualiza su perfil en el navegador directamente
+
+El codigo siguiente es funcional pero fallara con authwall hasta que se
+encuentre una solucion al bloqueo de LinkedIn.
+"""
+import asyncio
+from playwright.async_api import Page, async_playwright
+from pathlib import Path
 from backend.profile_updater.updater import BaseProfileUpdater, ProfileData
+
+SEL = {
+    "headline": "input[name='headline']",
+    "about": "textarea[name='about']",
+    "save_btn": "button[data-control-name='save'], button[class*='save']",
+    "save_fallback": "button:has-text('Save'), button:has-text('Guardar')",
+}
+
+PROFILE_DIR = Path("data/chrome_profile_linkedin")
 
 
 class LinkedInProfileUpdater(BaseProfileUpdater):
+    NAME = "linkedin"
     PROFILE_URL = "https://www.linkedin.com/in/johan-poveda-788760263"
     EDIT_URL = "https://www.linkedin.com/in/johan-poveda-788760263/edit"
 
-    def __init__(self):
-        self.session = SessionStorage("linkedin")
-        self.cookies = None
-
-    async def with_browser(self):
-        from playwright.async_api import async_playwright
-        pw = await async_playwright().start()
-        browser = await pw.chromium.launch(headless=False, channel="chrome")
-        context = await browser.new_context()
-        if self.cookies:
-            await context.add_cookies(self.cookies)
-        return pw, browser, context
-
     async def login(self) -> bool:
-        stored = self.session.load()
-        if not stored:
-            print("[LinkedInUpdater] No hay sesion guardada")
-            return False
-        self.cookies = stored.get("cookies", [])
-        if not self.cookies:
-            print("[LinkedInUpdater] No hay cookies en la sesion")
-            return False
         return True
 
+    async def read_current_profile(self) -> ProfileData:
+        print(f"[{self.NAME}] LinkedIn bloquea acceso automatizado al perfil")
+        print(f"[{self.NAME}] Abre tu navegador y ve a {self.PROFILE_URL} para ver tu perfil")
+        return ProfileData()
+
     async def update_profile(self, data: ProfileData) -> bool:
-        ok = await self.login()
-        if not ok:
-            return False
+        print(f"[{self.NAME}] LinkedIn bloquea actualizacion automatizada del perfil")
+        print(f"[{self.NAME}] Para actualizar tu perfil, abre:")
+        print(f"[{self.NAME}]   {self.EDIT_URL}")
+        print(f"[{self.NAME}]   y edita manualmente los siguientes campos:")
+        if data.headline:
+            print(f"[{self.NAME}]   - Headline: {data.headline}")
+        if data.about:
+            print(f"[{self.NAME}]   - About: {data.about}")
+        if data.location:
+            print(f"[{self.NAME}]   - Location: {data.location}")
+        if data.skills:
+            print(f"[{self.NAME}]   - Skills: {', '.join(data.skills)}")
+        return False
 
-        pw, browser, context = await self.with_browser()
-        page = await context.new_page()
+    async def _handle_captcha(self, page: Page) -> bool:
+        return True
 
-        try:
-            await page.goto(self.EDIT_URL, timeout=30000, wait_until="domcontentloaded")
-            await page.wait_for_timeout(5000)
-
-            captcha_ok = await self._handle_captcha(page)
-            if not captcha_ok:
-                print("[LinkedInUpdater] CAPTCHA detectado, abortando")
-                return False
-
-            if data.headline:
-                await self._update_field(page, "input[name='headline']", data.headline)
-            if data.about:
-                await self._update_field(page, "textarea[name='about']", data.about)
-            if data.skills:
-                for skill in data.skills:
-                    await self._add_skill(page, skill)
-                    await page.wait_for_timeout(1000)
-
-            await self._save(page)
-            print("[LinkedInUpdater] Perfil actualizado correctamente")
-            return True
-        finally:
-            await browser.close()
-            await pw.stop()
-
-    async def _update_field(self, page: Page, selector: str, value: str):
-        try:
-            el = await page.wait_for_selector(selector, timeout=5000)
-            if el:
-                await el.fill("")
-                await el.fill(value)
-                print(f"[LinkedInUpdater] Campo actualizado: {selector}")
-        except Exception:
-            print(f"[LinkedInUpdater] No se pudo actualizar: {selector}")
-
-    async def _add_skill(self, page: Page, skill: str):
-        try:
-            input_el = await page.wait_for_selector(
-                "input[placeholder*='skill']",
-                timeout=3000,
-            )
-            if input_el:
-                await input_el.fill(skill)
-                await page.keyboard.press("Enter")
-        except Exception:
-            pass
-
-    async def _save(self, page: Page):
-        try:
-            btn = await page.query_selector("button[data-control-name='save']")
-            if btn:
-                await btn.click()
-        except Exception:
-            pass
+    async def _setup_browser(self):
+        pw = await async_playwright().start()
+        context = await pw.chromium.launch_persistent_context(
+            user_data_dir=str(PROFILE_DIR),
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        return pw, context

@@ -3,7 +3,7 @@ import csv
 import argparse
 from datetime import datetime
 from pathlib import Path
-from backend.scrapers import LinkedInScraper, WellfoundScraper, GetOnBoardScraper, JobNormalizer
+from backend.scrapers import LinkedInScraper, WellfoundScraper, GetOnBoardScraper, IndeedScraper, JobNormalizer
 from backend.models import JobOffer
 from backend.config import settings
 
@@ -19,6 +19,8 @@ async def run_pipeline(keywords: list[str] | None = None, output: str | None = N
         scrapers.append(WellfoundScraper())
     if settings.scrape_getonboard:
         scrapers.append(GetOnBoardScraper())
+    if settings.scrape_indeed:
+        scrapers.append(IndeedScraper())
 
     if not scrapers:
         print("No hay scrapers habilitados. Revisa tu .env")

@@ -51,7 +51,7 @@ class BaseAuthenticator(ABC):
             try:
                 await self._validate_session(page)
             except Exception as e:
-                print(f"  ⚠ Advertencia al validar sesión: {e}")
+                print(f"  [!] Advertencia al validar sesion: {e}")
 
             storage = await context.storage_state()
             self.storage.save(storage)

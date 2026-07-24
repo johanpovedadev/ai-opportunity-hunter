@@ -1,5 +1,9 @@
 import random
+import logging
+from playwright.async_api import async_playwright
 from backend.scrapers.base import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class WellfoundScraper(BaseScraper):
@@ -9,6 +13,40 @@ class WellfoundScraper(BaseScraper):
     def fuente(self) -> str:
         return "wellfound"
 
+    async def with_browser(self):
+        """Override para usar configuración anti-detección."""
+        pw = await async_playwright().start()
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+
+        from backend.auth import SessionStorage
+        storage = SessionStorage(self.platform_for_auth or self.fuente)
+        state = storage.load()
+
+        if state:
+            context = await browser.new_context(
+                storage_state=state,
+                viewport={"width": 1920, "height": 1080},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+            )
+        else:
+            context = await browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+            )
+
+        return pw, browser, context
+
     async def scrape_keyword(self, keyword: str) -> list[dict]:
         results: list[dict] = []
         pw, browser, context = await self.with_browser()
@@ -16,10 +54,16 @@ class WellfoundScraper(BaseScraper):
 
         try:
             url = f"https://wellfound.com/role/{keyword.replace(' ', '-')}"
-            await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+            logger.info(f"Navegando a: {url}")
+            await page.goto(url, timeout=60000, wait_until="networkidle")
             await page.wait_for_timeout(random.randint(3000, 5000))
 
+            if await self._is_blocked(page):
+                logger.warning("Wellfound bloqueado por DataDome. Usa: python -m backend.scripts.cli auth login wellfound")
+                return results
+
             cards = await page.query_selector_all("a[data-test='SearchResultsItem']")
+            logger.info(f"Encontradas {len(cards)} tarjetas")
             cards = cards[:15]
 
             for card in cards:
@@ -34,6 +78,17 @@ class WellfoundScraper(BaseScraper):
             await pw.stop()
 
         return results
+
+    async def _is_blocked(self, page) -> bool:
+        """Detecta si DataDome o similar está bloqueando."""
+        html = await page.content()
+        checks = [
+            "captcha-delivery.com" in html,
+            "cf-browser-verification" in html,
+            "challenge-platform" in html,
+            "just a moment" in html.lower()[:500],
+        ]
+        return any(checks)
 
     async def _extract_job_data(self, card) -> dict | None:
         result: dict = {

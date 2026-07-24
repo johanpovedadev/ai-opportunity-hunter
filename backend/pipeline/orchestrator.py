@@ -8,7 +8,7 @@ from pathlib import Path
 
 from backend.models import JobOffer, Profile, AnalysisResult
 from backend.config import settings
-from backend.scrapers import LinkedInScraper, WellfoundScraper, GetOnBoardScraper, WorkanaScraper, ComputrabajoScraper, JobNormalizer
+from backend.scrapers import LinkedInScraper, WellfoundScraper, GetOnBoardScraper, ComputrabajoScraper, IndeedScraper, JobNormalizer
 from backend.ai.scoring_engine import ScoringEngine, ScoredOffer
 from backend.ai.base import BaseAnalyzer
 from backend.ai.gemini_analyzer import GeminiAnalyzer, QuotaExceededError
@@ -125,12 +125,12 @@ class Pipeline:
         if platforms is None or "wellfound" in platforms:
             if settings.scrape_wellfound:
                 scrapers.append(WellfoundScraper())
-        if platforms is None or "workana" in platforms:
-            if settings.scrape_workana:
-                scrapers.append(WorkanaScraper())
         if platforms is None or "computrabajo" in platforms:
             if settings.scrape_computrabajo:
                 scrapers.append(ComputrabajoScraper())
+        if platforms is None or "indeed" in platforms:
+            if settings.scrape_indeed:
+                scrapers.append(IndeedScraper())
 
         if not scrapers:
             print("[Pipeline] No hay scrapers habilitados. Revisa tu .env")

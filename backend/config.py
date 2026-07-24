@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     scrape_linkedin: bool = True
     scrape_wellfound: bool = True
     scrape_getonboard: bool = True
-    scrape_workana: bool = True
     scrape_computrabajo: bool = True
+    scrape_indeed: bool = True
     search_keywords: str = "python developer,backend engineer,software engineer"
     score_threshold: float = 7.0
     schedule_interval_hours: int = 6
